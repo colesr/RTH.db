@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RTH.database - Realistic Earth Simulation</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #020208;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: #e2e8f0;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* UI Overlay */
+        .interface-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 24px;
+        }
+
+        .interactive {
+            pointer-events: auto;
+        }
+
+        header {
+            background: rgba(10, 10, 25, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 16px 24px;
+            border-radius: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 400px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .logo-area h1 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            color: #ffffff;
+            text-transform: uppercase;
+        }
+
+        .logo-area span {
+            color: #10b981; /* Forest Green Accent */
+        }
+
+        .control-panel {
+            background: rgba(10, 10, 25, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 12px;
+            max-width: 320px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            margin-top: auto;
+        }
+
+        .panel-title {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 12px;
+            color: #94a3b8;
+            font-weight: 600;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            margin-right: 12px;
+            box-shadow: inset 0 0 4px rgba(0,0,0,0.5);
+        }
+
+        .color-forest { background-color: #15803d; border: 1px solid #22c55e; }
+        .color-desert { background-color: #eab308; }
+        .color-tundra { background-color: #a1a1aa; }
+        .color-savanna { background-color: #84cc16; }
+
+        .instructions {
+            font-size: 0.75rem;
+            color: #64748b;
+            margin-top: 16px;
+            border-top: 1px solid rgba(255,255,255,0.05);
+            padding-top: 12px;
+            text-align: center;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <div class="interface-layer">
+        <header class="interactive">
+            <div class="logo-area">
+                <h1>RTH.<span>database</span></h1>
+            </div>
+        </header>
+
+        <div class="control-panel interactive">
+            <div class="panel-title">Biome Classification Map</div>
+            <div class="legend-item">
+                <div class="legend-color color-forest"></div>
+                <span>Forests & Wooded Landscape</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color color-savanna"></div>
+                <span>Grasslands & Savanna</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color color-desert"></div>
+                <span>Arid & Desert Regions</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color color-tundra"></div>
+                <span>Tundra & Ice Caps</span>
+            </div>
+            <div class="instructions">
+                Left Click + Drag to rotate globe.<br>Scroll to zoom.
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. SETUP ENVIRONMENT ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 220;
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        container.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.minDistance = 120;
+        controls.maxDistance = 400;
+
+        // --- 2. LIGHTING ---
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
+        scene.add(ambientLight);
+
+        const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        sunLight.position.set(5, 3, 5).normalize();
+        scene.add(sunLight);
+
+        // --- 3. TWINKLING STARS BACKGROUND ---
+        const starCount = 1500;
+        const starGeometry = new THREE.BufferGeometry();
+        const starPositions = new Float32Array(starCount * 3);
+        const starSizes = new Float32Array(starCount);
+
+        for (let i = 0; i < starCount * 3; i += 3) {
+            // Distribute stars over a large sphere
+            const u = Math.random();
+            const v = Math.random();
+            const theta = u * 2.0 * Math.PI;
+            const phi = Math.acos(2.0 * v - 1.0);
+            const r = 500 + Math.random() * 300; 
+
+            starPositions[i] = r * Math.sin(phi) * Math.cos(theta);
+            starPositions[i+1] = r * Math.sin(phi) * Math.sin(theta);
+            starPositions[i+2] = r * Math.cos(phi);
+            
+            starSizes[i/3] = Math.random() * 2.0;
+        }
+
+        starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+        
+        // Star Material supporting twinkling effects via uniform
+        const starMaterial = new THREE.PointsMaterial({
+            color: 0xffffff,
+            size: 1.5,
+            transparent: true,
+            opacity: 0.8,
+            sizeAttenuation: true
+        });
+
+        const starField = new THREE.Points(starGeometry, starMaterial);
+        scene.add(starField);
+
+        // --- 4. PROCEDURAL HIGH-RESOLUTION BIOME TEXTURE CREATION ---
+        // Dynamically creates landmasses, exact boundaries, and explicitly colors all wooded areas green.
+        function createProceduralEarthTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 4096;
+            canvas.height = 2048;
+            const ctx = canvas.getContext('2d');
+
+            // Set up fallback background (Deep Ocean blue)
+            ctx.fillStyle = '#08162b';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Simple fast deterministic pseudo-random noise configuration for continental shapes
+            function noise(x, y) {
+                let n = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453123;
+                return n - Math.floor(n);
+            }
+
+            function smoothNoise(x, y) {
+                let total = 0;
+                const frequencies = [4, 8, 16, 32, 64];
+                const amplitudes = [0.5, 0.25, 0.125, 0.0625, 0.03125];
+                
+                for(let i=0; i<frequencies.length; i++) {
+                    let f = frequencies[i];
+                    let a = amplitudes[i];
+                    total += (Math.sin(x * f) * Math.cos(y * f) * 0.5 + 0.5) * a;
+                }
+                return total;
+            }
+
+            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imgData.data;
+
+            for (let y = 0; y < canvas.height; y++) {
+                // Normalize coordinates to approximate global latitude mapping (-1 to 1)
+                const latFactor = 1.0 - (y / canvas.height) * 2.0; 
+                const absLat = Math.abs(latFactor);
+
+                for (let x = 0; x < canvas.width; x++) {
+                    const nx = (x / canvas.width) * Math.PI * 2;
+                    const ny = (y / canvas.height) * Math.PI;
+
+                    // Generate distinct layout configuration using spherical coordinates 
+                    const sampleX = Math.sin(ny) * Math.cos(nx);
+                    const sampleY = Math.sin(ny) * Math.sin(nx);
+                    const sampleZ = Math.cos(ny);
+
+                    // Combine layers to create solid land outlines/boundaries
+                    let elevation = smoothNoise(sampleX * 1.8 + 5, sampleY * 1.8 + 10) * 0.7 +
+                                    smoothNoise(sampleZ * 3.5, sampleX * 3.5) * 0.3;
+
+                    // Coastline adjustment factor
+                    if (elevation > 0.44) { 
+                        // It is a land mass! Evaluate moisture + latitude to establish biomes
+                        let moisture = smoothNoise(sampleY * 2.5 + 50, sampleZ * 2.5 + 20);
+                        
+                        let r = 0, g = 0, b = 0;
+
+                        if (absLat > 0.78) {
+                            // Tundra / Polar Ice Caps
+                            r = 212; g = 218; b = 224;
+                        } else if (absLat > 0.55 && moisture > 0.4) {
+                            // Temperate Forest & Wooded Landscape (Vibrant Green)
+                            r = 21; g = 128; b = 61;
+                        } else if (absLat < 0.35 && moisture > 0.45) {
+                            // Tropical Rainforest (Lush Emerald Green)
+                            r = 16; g = 185; b = 129;
+                        } else if (moisture < 0.36 && absLat < 0.5) {
+                            // Arid Deserts (Sandy Gold)
+                            r = 234; g = 179; b = 8;
+                        } else if (moisture < 0.42) {
+                            // Savanna / Shrubs / Grasslands (Light Olive/Lime Green)
+                            r = 132; g = 204; b = 22;
+                        } else {
+                            // Standard woodland / Generic vegetation default (Green)
+                            r = 34; g = 197; b = 94;
+                        }
+
+                        // Write pixel values to array Buffer
+                        const idx = (y * canvas.width + x) * 4;
+                        data[idx] = r;
+                        data[idx+1] = g;
+                        data[idx+2] = b;
+                    }
+                }
+            }
+
+            ctx.putImageData(imgData, 0, 0);
+
+            // Smooth coastal edges and add shallow water tinting
+            ctx.globalCompositeOperation = 'destination-over';
+            ctx.fillStyle = '#0f2b48'; // Shallows
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        // --- 5. BUILD THE GLOBE ---
+        const globeTexture = createProceduralEarthTexture();
+        const globeGeometry = new THREE.SphereGeometry(60, 64, 64);
+        const globeMaterial = new THREE.MeshStandardMaterial({
+            map: globeTexture,
+            roughness: 0.8,
+            metalness: 0.1
+        });
+
+        const globe = new THREE.Mesh(globeGeometry, globeMaterial);
+        scene.add(globe);
+
+        // Slowly rotate globe initially to give a floating/spinning feel
+        globe.rotation.y = 2.5; 
+
+        // --- 6. ANIMATION LOOP ---
+        let clock = new THREE.Clock();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const elapsedTime = clock.getElapsedTime();
+
+            // Subtle rotation adjustments over time if not handled directly by user drag
+            if(!controls.state == -1) {
+                globe.rotation.y += 0.0005;
+            }
+
+            // Twinkle stars effect by adjusting opacity based on a sine wave
+            starMaterial.opacity = 0.6 + Math.sin(elapsedTime * 2) * 0.2;
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // --- 7. HANDLE WINDOW RESIZE ---
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Initialize execution loop
+        animate();
+    </script>
+</body>
+</html>
