@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RTH.database - Realistic Earth Simulation</title>
+    <title>RTH.database - Earth Vegetation Explorer</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -13,130 +13,134 @@
     <div id="canvas-container"></div>
 
     <div class="interface-layer">
-        <header class="interactive">
+        <header class="interactive top-bar">
             <div class="logo-area">
                 <h1>RTH.<span>database</span></h1>
             </div>
+            <div class="search-row">
+                <input type="search" id="place-search" placeholder="Search place or lat, lon" autocomplete="off" />
+                <button type="button" id="search-btn" class="btn btn-primary">Go</button>
+                <button type="button" id="share-btn" class="btn btn-ghost" title="Copy shareable link">Copy link</button>
+            </div>
+            <div id="search-status" class="search-status" aria-live="polite"></div>
         </header>
 
+        <div id="toast" class="toast" hidden></div>
+
         <div class="control-panel interactive">
-            <div id="location-inspector" style="display:none; position: sticky; top: 0; z-index: 2; background:rgba(15,23,42,0.85); border:1px solid rgba(163,230,53,0.4); padding:8px; border-radius:6px; margin-bottom:10px; font-size:0.7rem; line-height:1.3; box-shadow: 0 2px 4px rgba(0,0,0,0.3);">
-                <div style="font-weight:600; color:#a3e635; margin-bottom:4px;">🌍 Clicked Location Inspector</div>
-                <div id="coords" style="margin-bottom:2px;"></div>
-                <div id="biome-info" style="margin-bottom:2px;"></div>
-                <div id="sustainability-metrics" style="margin-bottom:2px;"></div>
-                <div id="action-suggestion" style="color:#eab308; font-style:italic;"></div>
-            </div>
-            <div class="panel-title">Realistic Biomes (MODIS MCD12 inspired)</div>
-            <div class="legend-item">
-                <div class="legend-color color-forest"></div>
-                <span>Evergreen/Deciduous Forests (IGBP)</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-color color-savanna"></div>
-                <span>Shrublands, Savannas & Grasslands</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-color color-desert"></div>
-                <span>Barren, Croplands & Arid</span>
-            </div>
-            <div class="legend-item">
-                <div class="legend-color color-tundra"></div>
-                <span>Snow/Ice, Tundra & Wetlands</span>
-            </div>
-            <div class="instructions">
-                Left Click + Drag to rotate globe.<br>Scroll to zoom.<br>
-                <strong>Click the globe</strong> to inspect sustainability metrics at any location.<br>
-                Use layers + Sim Controls to explore "what-if" scenarios.
+            <!-- Location inspector -->
+            <div id="location-inspector" class="inspector-card" hidden>
+                <div class="inspector-title">Location inspector</div>
+                <div id="coords" class="inspector-line"></div>
+                <div id="place-label" class="inspector-line muted"></div>
+                <div id="sample-info" class="inspector-sample"></div>
+                <div id="biome-info" class="inspector-line muted"></div>
             </div>
 
-            <!-- Seasonal Vegetation Cycle -->
-            <div style="margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 12px;">
-                <div class="panel-title">Seasonal Plant Life</div>
-                <div id="season-label" style="font-size: 0.95rem; font-weight: 600; margin-bottom: 6px; color: #a3e635;">
-                    July — Peak Northern Summer
+            <!-- Hero layers -->
+            <div class="panel-title">Map layer</div>
+            <select id="ee-layer" class="full-select">
+                <option value="bmng">Seasonal Earth (BMNG color)</option>
+                <option value="treecover">Vegetation greenness (MODIS NDVI 2020)</option>
+                <option value="change">Vegetation change (NDVI 2001 → 2020)</option>
+            </select>
+            <div id="layer-legend" class="layer-legend">
+                <div id="legend-title" class="legend-title">Seasonal color basemap</div>
+                <div id="legend-gradient" class="legend-gradient legend-bmng"></div>
+                <div id="legend-labels" class="legend-labels"><span>Ocean / ice</span><span>Land / forests</span></div>
+                <div id="legend-source" class="legend-source">NASA Blue Marble Next Generation (monthly)</div>
+            </div>
+
+            <!-- Compare then / now -->
+            <div class="section-block">
+                <div class="panel-title">Compare then / now</div>
+                <label class="check-row">
+                    <input type="checkbox" id="compare-toggle">
+                    Wipe: NDVI 2001 vs 2020
+                </label>
+                <input type="range" id="compare-slider" min="0" max="1" step="0.01" value="0.5" disabled>
+                <div class="range-ends">
+                    <span>2001</span>
+                    <span id="compare-pos-label">50% wipe</span>
+                    <span>2020</span>
                 </div>
-                <input type="range" id="season-slider" min="0" max="11" step="1" value="6" 
-                       style="width: 100%; accent-color: #a3e635; cursor: pointer;">
-                <div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: #64748b; margin-top: 2px;">
+                <div class="hint">Satellite vegetation greenness — not Hansen tree-cover loss.</div>
+            </div>
+
+            <!-- Seasonal -->
+            <div class="section-block">
+                <div class="panel-title">Seasonal plant life (BMNG)</div>
+                <div id="season-label" class="season-label">July — Peak Northern Summer</div>
+                <input type="range" id="season-slider" min="0" max="11" step="1" value="6">
+                <div class="range-ends">
                     <span>Jan</span><span>Jul</span><span>Dec</span>
                 </div>
-                <div style="margin-top: 8px; display: flex; gap: 8px; align-items: center;">
-                    <button id="season-play" style="flex: 1; background: rgba(163, 230, 53, 0.15); color: #a3e635; border: 1px solid rgba(163, 230, 53, 0.4); padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; cursor: pointer;">
-                        ▶ Play Seasons
+                <div class="btn-row">
+                    <button type="button" id="season-play" class="btn btn-primary flex-1">▶ Play Seasons</button>
+                    <button type="button" id="season-reset" class="btn btn-ghost">Reset</button>
+                </div>
+                <div class="panel-title veg-glow-title">Vegetation glow</div>
+                <input type="range" id="veg-glow" min="0" max="1" step="0.05" value="0.22">
+                <div class="range-ends">
+                    <span>Off</span><span>Rich &amp; lush</span>
+                </div>
+            </div>
+
+            <!-- Guided stories -->
+            <div class="section-block">
+                <div class="panel-title">Guided stories</div>
+                <div class="story-cards">
+                    <button type="button" class="story-card" data-story="amazon">
+                        <strong>Amazon</strong>
+                        <span>Rainforest greenness &amp; change</span>
                     </button>
-                    <button id="season-reset" style="background: rgba(255,255,255,0.06); color: #cbd5e1; border: 1px solid rgba(255,255,255,0.15); padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; cursor: pointer;">
-                        Reset
+                    <button type="button" class="story-card" data-story="congo">
+                        <strong>Congo Basin</strong>
+                        <span>Africa’s great forest heart</span>
+                    </button>
+                    <button type="button" class="story-card" data-story="boreal">
+                        <strong>Boreal North</strong>
+                        <span>Seasons across the taiga</span>
                     </button>
                 </div>
-
-                <!-- #2: Vegetation Density / Glow Overlay -->
-                <div style="margin-top: 14px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px;">
-                    <div class="panel-title">Vegetation Glow</div>
-                    <input type="range" id="veg-glow" min="0" max="1" step="0.05" value="0.22" 
-                           style="width: 100%; accent-color: #22c55e; cursor: pointer;">
-                    <div style="display: flex; justify-content: space-between; font-size: 0.65rem; color: #64748b; margin-top: 1px;">
-                        <span>Off</span><span>Rich &amp; Lush</span>
-                    </div>
-                </div>
-
-                <!-- Earth Engine / GFW Datasets Integration -->
-                <div style="margin-top: 14px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px;">
-                    <div class="panel-title">Data Layers (Earth's Natural Environment)</div>
-                    <div style="font-size: 0.65rem; margin-bottom: 6px; color: #94a3b8;">
-                        Powered by GFW + <a href="https://developers.google.com/earth-engine/datasets/catalog" target="_blank" style="color:#60a5fa;">Google Earth Engine</a><br>
-                        Export global equirect maps for these:
-                    </div>
-                    <select id="ee-layer" style="width:100%; background:#0f172a; color:#e2e8f0; border:1px solid #334155; padding:3px; font-size:0.7rem; border-radius:4px; margin-bottom:4px;">
-                        <option value="bmng">Base: Seasonal BMNG Color</option>
-                        <option value="ndvi">MOD13 NDVI / EVI (Vegetation Health)</option>
-                        <option value="treecover">MOD44B % Tree Cover (Density)</option>
-                        <option value="forestloss">Hansen Global Forest Change (Loss)</option>
-                        <option value="nightlights">VIIRS Nighttime Lights (Human Activity)</option>
-                        <option value="planted">GFW Planted Forests (SDPT)</option>
-                        <option value="treegain">GFW Tree Cover Gain</option>
-                        <option value="forestextent">GFW Tree Cover Extent</option>
-                        <option value="soilcarbon">Soil Organic Carbon (Natural Capital)</option>
-                        <option value="biomass">Above Ground Biomass (Carbon Stock)</option>
-                        <option value="biodiversity">Biodiversity Intactness (Ecosystem Health)</option>
-                    </select>
-                    <div style="font-size: 0.65rem; line-height: 1.3;">
-                        <label style="display:block;"><input type="checkbox" id="show-landcover" checked> MCD12 Land Cover (Biomes)</label>
-                        <label style="display:block;"><input type="checkbox" id="show-precip"> CHIRPS Precipitation</label>
-                        <label style="display:block;"><input type="checkbox" id="show-temp"> MODIS Land Surface Temp</label>
-                        <label style="display:block;"><input type="checkbox" id="show-planted"> GFW Planted Forests (SDPT)</label>
-                        <label style="display:block;"><input type="checkbox" id="show-treegain"> GFW Tree Cover Gain (5yr)</label>
-                        <label style="display:block;"><input type="checkbox" id="show-forestextent"> GFW Tree Cover Extent (baseline)</label>
-                        <label style="display:block;"><input type="checkbox" id="show-alerts"> GFW Integrated Deforestation Alerts (GLAD)</label>
-                        <label style="display:block;"><input type="checkbox" id="show-soilcarbon"> Soil Organic Carbon</label>
-                        <label style="display:block;"><input type="checkbox" id="show-biomass"> Above Ground Biomass</label>
-                        <label style="display:block;"><input type="checkbox" id="show-biodiversity"> Biodiversity Intactness</label>
-                    </div>
-
-                    <!-- Basic Sustainability Simulation Controls -->
-                    <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.05);">
-                        <div class="panel-title" style="font-size:0.7rem;">Sim Controls (Scenario Testing)</div>
-                        <div style="font-size:0.6rem; margin-bottom:3px;">Deforestation Impact</div>
-                        <input type="range" id="sim-deforest" min="0" max="1" step="0.05" value="0" style="width:100%; accent-color:#ef4444;">
-                        <div style="font-size:0.6rem; margin:3px 0;">Warming Anomaly</div>
-                        <input type="range" id="sim-warm" min="0" max="1" step="0.05" value="0" style="width:100%; accent-color:#f97316;">
-                        <div style="font-size:0.55rem; color:#64748b;">These modulate the data layers above for "what-if" scenarios.</div>
-                    </div>
-
-                    <!-- Live Analysis / Stats (GFW-inspired) -->
-                    <div style="margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.05); font-size:0.6rem;">
-                        <div class="panel-title" style="font-size:0.65rem;">Live Forest Analysis</div>
-                        <div id="analysis-stats" style="background:rgba(0,0,0,0.3); padding:4px; border-radius:3px; line-height:1.2;">
-                            Net Change: <span id="net-change">--</span><br>
-                            Alert Hotspots: <span id="alert-level">--</span><br>
-                            Forest Health: <span id="forest-health">--</span>
-                        </div>
-                        <div style="font-size:0.5rem; color:#64748b;">Based on active layers + sims (demo values)</div>
+                <div id="story-player" class="story-player" hidden>
+                    <div id="story-progress" class="story-progress"></div>
+                    <div id="story-title" class="story-title"></div>
+                    <div id="story-body" class="story-body"></div>
+                    <div class="btn-row">
+                        <button type="button" id="story-prev" class="btn btn-ghost">Prev</button>
+                        <button type="button" id="story-next" class="btn btn-primary flex-1">Next</button>
+                        <button type="button" id="story-exit" class="btn btn-ghost">Exit</button>
                     </div>
                 </div>
             </div>
+
+            <div class="instructions">
+                Drag to rotate · Scroll to zoom · Click the globe to sample pixels<br>
+                Search a place or paste <code>lat, lon</code> · Share a deep link
+            </div>
+
+            <details class="experimental">
+                <summary>Experimental / placeholder layers</summary>
+                <p class="hint">These toggles are UI stubs from an earlier prototype and may not load real datasets.</p>
+                <div class="sim-block">
+                    <div class="panel-title">Sim knobs (visual only)</div>
+                    <div class="hint">Deforestation tint</div>
+                    <input type="range" id="sim-deforest" min="0" max="1" step="0.05" value="0">
+                    <div class="hint">Warming tint</div>
+                    <input type="range" id="sim-warm" min="0" max="1" step="0.05" value="0">
+                </div>
+                <div id="analysis-stats" class="analysis-stats">
+                    Net Change: <span id="net-change">—</span><br>
+                    Alert Hotspots: <span id="alert-level">—</span><br>
+                    Forest Health: <span id="forest-health">—</span>
+                    <div class="hint">Demo values only — not scientific estimates.</div>
+                </div>
+            </details>
         </div>
     </div>
+
+    <div id="loading-badge" class="loading-badge interactive">Loading textures…</div>
 
     <script src="main.js"></script>
 </body>
