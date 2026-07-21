@@ -1,12 +1,4 @@
 // --- 1. SETUP ENVIRONMENT ---
-// Note: If running directly as file:///... some textures may fail due to browser CORS policy on local files.
-// Recommended: Serve via local HTTP server, e.g.:
-//   python -m http.server 8000
-// Then open http://localhost:8000/index.html
-
-if (window.location.protocol === 'file:') {
-  console.warn('%c[Warning] Running from file:// protocol. Textures may not load. Use a local web server for full functionality.', 'color: orange');
-}
 const container = document.getElementById('canvas-container');
 const scene = new THREE.Scene();
 
@@ -115,17 +107,9 @@ let plantedForestsTexture = null;
 let treeGainTexture = null;
 let forestExtentTexture = null;
 let alertsTexture = null;
-let showWorldCover = false;
-let showSurfaceWater = false;
-let showNpp = false;
-let showFire = false;
 let soilCarbonTexture = null;
 let biomassTexture = null;
 let biodiversityTexture = null;
-let worldCoverTexture = null;
-let surfaceWaterTexture = null;
-let nppTexture = null;
-let fireTexture = null;
 
 // Simulation scenario multipliers (for future platform)
 let simDeforest = 0;
@@ -215,14 +199,6 @@ function applyEarthMaterial() {
         activeColor = forestExtentTexture;
     } else if (showForestExtent && forestExtentTexture) {
         activeColor = forestExtentTexture;
-    } else if (currentEELayer === 'worldcover' && worldCoverTexture) {
-        activeColor = worldCoverTexture;
-    } else if (currentEELayer === 'surfacewater' && surfaceWaterTexture) {
-        activeColor = surfaceWaterTexture;
-    } else if (currentEELayer === 'npp' && nppTexture) {
-        activeColor = nppTexture;
-    } else if (currentEELayer === 'fire' && fireTexture) {
-        activeColor = fireTexture;
     } else if (currentEELayer === 'soilcarbon' && soilCarbonTexture) {
         activeColor = soilCarbonTexture;
     } else if (currentEELayer === 'biomass' && biomassTexture) {
@@ -556,22 +532,6 @@ function applyEmissiveToMaterial(mat) {
         // Vibrant for biodiversity
         emissiveColor = emissiveColor.clone().add(new THREE.Color(0x9932cc).multiplyScalar(0.2));
     }
-    if (worldCoverTexture && (currentEELayer === 'worldcover' || document.getElementById('show-worldcover')?.checked)) {
-        // Use as base, but add subtle tint for detail
-        emissiveColor = emissiveColor.clone().add(new THREE.Color(0x00ff00).multiplyScalar(0.1));
-    }
-    if (surfaceWaterTexture && (currentEELayer === 'surfacewater' || document.getElementById('show-surfacewater')?.checked)) {
-        // Blue for water bodies
-        emissiveColor = emissiveColor.clone().add(new THREE.Color(0x0066ff).multiplyScalar(0.4));
-    }
-    if (nppTexture && (currentEELayer === 'npp' || document.getElementById('show-npp')?.checked)) {
-        // Productivity green-yellow
-        emissiveColor = emissiveColor.clone().add(new THREE.Color(0xadff2f).multiplyScalar(0.3));
-    }
-    if (fireTexture && (currentEELayer === 'fire' || document.getElementById('show-fire')?.checked)) {
-        // Orange/red for fire/burned
-        emissiveColor = emissiveColor.clone().add(new THREE.Color(0xff6600).multiplyScalar(0.35));
-    }
 
     mat.emissive = emissiveColor;
     mat.needsUpdate = true;
@@ -589,9 +549,6 @@ function updateAnalysisStats() {
     if (treeGainTexture && showTreeGain) net += 5 + (1 - simWarm) * 4;
     if (forestExtentTexture && showForestExtent) net += 3;
     if (alertsTexture && showAlerts) net -= 5 + simDeforest * 8;  // alerts indicate ongoing loss
-    if (nppTexture && (currentEELayer === 'npp' || document.getElementById('show-npp')?.checked)) net += 4;
-    if (fireTexture && (currentEELayer === 'fire' || document.getElementById('show-fire')?.checked)) net -= 3;
-    if (surfaceWaterTexture && (currentEELayer === 'surfacewater' || document.getElementById('show-surfacewater')?.checked)) net += 2; // water availability
 
     const netStr = (net > 0 ? '+' : '') + net.toFixed(0) + '%';
     netEl.textContent = netStr;
@@ -946,66 +903,6 @@ loadAlertsTexture();
 loadSoilCarbonTexture();
 loadBiomassTexture();
 loadBiodiversityTexture();
-loadWorldCoverTexture();
-loadSurfaceWaterTexture();
-loadNppTexture();
-loadFireTexture();
-
-// New datasets from Earth Engine catalog for Earth's natural environment
-const worldCoverUrls = [
-    // ESA WorldCover v100/v200 - 10m land cover from Sentinel. High detail biomes.
-    // In EE: ee.ImageCollection('ESA/WorldCover/v100').first().visualize(vis).getThumbURL or export.
-    'https://s3-us-west-2.amazonaws.com/s.cdpn.io/122460/earth_map_2048x1024.jpg'
-];
-function loadWorldCoverTexture(index = 0) {
-    if (index >= worldCoverUrls.length) return;
-    textureLoader.load(worldCoverUrls[index], function(tex) {
-        worldCoverTexture = configureTexture(tex);
-        applyEarthMaterial();
-    }, undefined, () => loadWorldCoverTexture(index+1));
-}
-
-const surfaceWaterUrls = [
-    // JRC Global Surface Water - water occurrence, seasonality.
-    // ee.Image('JRC/GSW1_4/GlobalSurfaceWater')
-    'https://s3-us-west-2.amazonaws.com/s.cdpn.io/122460/earth_map_2048x1024.jpg'
-];
-function loadSurfaceWaterTexture(index = 0) {
-    if (index >= surfaceWaterUrls.length) return;
-    textureLoader.load(surfaceWaterUrls[index], function(tex) {
-        surfaceWaterTexture = configureTexture(tex);
-        applyEarthMaterial();
-    }, undefined, () => loadSurfaceWaterTexture(index+1));
-}
-
-const nppUrls = [
-    // MODIS Net Primary Productivity (MOD17A3HGF) - carbon fixed by plants.
-    'https://s3-us-west-2.amazonaws.com/s.cdpn.io/122460/earth_map_2048x1024.jpg'
-];
-function loadNppTexture(index = 0) {
-    if (index >= nppUrls.length) return;
-    textureLoader.load(nppUrls[index], function(tex) {
-        nppTexture = configureTexture(tex);
-        applyEarthMaterial();
-    }, undefined, () => loadNppTexture(index+1));
-}
-
-const fireUrls = [
-    // MODIS Burned Area (MCD64A1) or Active Fire for disturbance.
-    'https://s3-us-west-2.amazonaws.com/s.cdpn.io/122460/earth_map_2048x1024.jpg'
-];
-function loadFireTexture(index = 0) {
-    if (index >= fireUrls.length) return;
-    textureLoader.load(fireUrls[index], function(tex) {
-        fireTexture = configureTexture(tex);
-        applyEarthMaterial();
-    }, undefined, () => loadFireTexture(index+1));
-}
-
-loadWorldCoverTexture();
-loadSurfaceWaterTexture();
-loadNppTexture();
-loadFireTexture();
 
 // Re-apply after layers
 setTimeout(() => { if (typeof applyEarthMaterial === 'function') applyEarthMaterial(); }, 300);
@@ -1163,17 +1060,30 @@ setTimeout(() => {
         });
     }
 
-    // New EE / natural environment layers checkboxes (single clean block)
-    const newLayerChecks = [
-        'show-soilcarbon', 'show-biomass', 'show-biodiversity',
-        'show-worldcover', 'show-surfacewater', 'show-npp', 'show-fire'
-    ];
-    newLayerChecks.forEach(id => {
-        const chk = document.getElementById(id);
-        if (chk) {
-            chk.addEventListener('change', () => applyEarthMaterial());
-        }
-    });
+    // New natural environment checkboxes
+    const soilCheck = document.getElementById('show-soilcarbon');
+    if (soilCheck) {
+        soilCheck.checked = !!document.getElementById('show-soilcarbon')?.checked;
+        soilCheck.addEventListener('change', () => {
+            applyEarthMaterial();
+        });
+    }
+
+    const biomassCheck = document.getElementById('show-biomass');
+    if (biomassCheck) {
+        biomassCheck.checked = !!document.getElementById('show-biomass')?.checked;
+        biomassCheck.addEventListener('change', () => {
+            applyEarthMaterial();
+        });
+    }
+
+    const bioCheck = document.getElementById('show-biodiversity');
+    if (bioCheck) {
+        bioCheck.checked = !!document.getElementById('show-biodiversity')?.checked;
+        bioCheck.addEventListener('change', () => {
+            applyEarthMaterial();
+        });
+    }
 
     // Set initial values for toggles
     if (precipCheck) precipCheck.checked = showPrecip;
